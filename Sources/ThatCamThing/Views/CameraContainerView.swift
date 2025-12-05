@@ -57,7 +57,6 @@ public struct CameraView<Overlay: CameraOverlay, ErrorOverlay: View>: View {
                 onImageCapturedAction?(newValue)
             }
         }
-        .compositingGroup()
        
     }
     
