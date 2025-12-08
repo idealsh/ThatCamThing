@@ -40,7 +40,9 @@ public class CameraManager: NSObject, ObservableObject, @unchecked Sendable {
 
 extension CameraManager {
     
-    public func checkPermissions() {
+    // this will request ca
+    public func requestCameraPermissions() {
+        
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             setUp()
