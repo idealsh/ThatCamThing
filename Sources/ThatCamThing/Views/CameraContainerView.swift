@@ -57,7 +57,6 @@ public struct CameraView<Overlay: CameraOverlay, ErrorOverlay: View>: View {
                 onImageCapturedAction?(newValue)
             }
         }
-       
     }
     
     private func setupCameraWithAttributes() {
@@ -65,7 +64,7 @@ public struct CameraView<Overlay: CameraOverlay, ErrorOverlay: View>: View {
         if let attributes = defaultAttributes {
             camera.attributes = attributes
         }
-        camera.checkPermissions()
+//        camera.checkPermissions()
     }
 }
 
