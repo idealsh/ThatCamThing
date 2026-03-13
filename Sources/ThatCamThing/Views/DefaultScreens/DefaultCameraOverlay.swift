@@ -202,7 +202,7 @@ public struct DefaultCameraOverlay:  CameraOverlay {
         let newZoom = max(0.5, min(10.0, targetZoom))
 
         if newZoom < 1.0 {
-            if camera.isUltraWideAvailable() {
+            if camera.checkUltraWideAvailable() {
                 if camera.attributes.lensType != .ultraWide {
                     camera.switchLensType()
                 }
@@ -299,7 +299,7 @@ public struct DefaultCameraOverlay:  CameraOverlay {
     /// Checks if a zoom preset is available on the current device
     private func isZoomPresetAvailable(_ preset: CGFloat) -> Bool {
         if preset == 0.5 {
-            return camera.isUltraWideAvailable()
+            return camera.checkUltraWideAvailable()
         }
         return true // 1x and 2x are always available
     }
@@ -307,7 +307,7 @@ public struct DefaultCameraOverlay:  CameraOverlay {
     private func handleZoomPreset(_ preset: CGFloat) {
         if preset == 0.5 {
             // Switch to ultra-wide lens if available
-            if camera.isUltraWideAvailable() && camera.attributes.lensType != .ultraWide {
+            if camera.checkUltraWideAvailable() && camera.attributes.lensType != .ultraWide {
                 camera.switchLensType()
             }
             camera.setZoom(1.0) // Ultra-wide at 1x is effectively 0.5x

@@ -29,6 +29,14 @@ public class CameraManager: NSObject, ObservableObject, @unchecked Sendable {
     private let sessionQueue = DispatchQueue(label: Constants.dispatchQueueName)
     private var currentInput: AVCaptureDeviceInput?
     
+    private var zoomObservation: NSKeyValueObservation?
+    private var lensObservation: NSKeyValueObservation?
+    
+    deinit {
+        zoomObservation?.invalidate()
+        lensObservation?.invalidate()
+    }
+    
     // MARK: - Initialization
     public override init() {
         self.preview = AVCaptureVideoPreviewLayer()
@@ -68,6 +76,47 @@ extension CameraManager {
         }
     }
     
+    private func updateUltraWideAvailability(for position: AVCaptureDevice.Position) {
+        let isAvailable = AVCaptureDevice.default(.builtInUltraWideCamera, for: .video, position: position) != nil
+        
+        DispatchQueue.main.async {
+            self.attributes.isUltraWideAvailable = isAvailable
+        }
+    }
+    
+    private func observeDevice(_ device: AVCaptureDevice) {
+        zoomObservation?.invalidate()
+        lensObservation?.invalidate()
+        
+        zoomObservation = device.observe(\.videoZoomFactor, options: [.new]) { [weak self] observedDevice, change in
+            guard let self = self, let factor = change.newValue else { return }
+            
+            let uiZoom = self.getUIZoomFactor(from: factor, for: observedDevice)
+            
+            DispatchQueue.main.async {
+                self.attributes.zoomFactor = uiZoom
+            }
+        }
+        
+        lensObservation = device.observe(\.activePrimaryConstituent, options: [.new]) { [weak self] device, _ in
+            guard let activeDevice = device.activePrimaryConstituent else { return }
+            let newLensType: CameraLensType
+            
+            if activeDevice.deviceType == .builtInUltraWideCamera {
+                newLensType = .ultraWide
+            } else if activeDevice.deviceType == .builtInTelephotoCamera {
+                newLensType = .telephoto
+            } else {
+                newLensType = .wide
+            }
+            
+            DispatchQueue.main.async {
+                self?.attributes.lensType = newLensType
+                print("Physical lens changed to: \(newLensType)")
+            }
+        }
+    }
+    
     func findDevice(position: AVCaptureDevice.Position) throws -> AVCaptureDevice {
         let discovery = AVCaptureDevice.DiscoverySession(
             deviceTypes: [.builtInTripleCamera, .builtInDualWideCamera, .builtInDualCamera, .builtInWideAngleCamera, .builtInUltraWideCamera],
@@ -89,27 +138,18 @@ extension CameraManager {
             self.session.beginConfiguration()
             defer { self.session.commitConfiguration() }
             
-            do {
-                print("Setting resolution by checking if it is supported")
-                if self.session.canSetSessionPreset(self.attributes.resolution) {
-                    print("Desired resolution is supported")
-                    self.session.sessionPreset = self.attributes.resolution
-                } else {
-                    self.session.sessionPreset = .high
-                    print("Desired resolution not supported, using .high instead.")
-                }
-                
-                let cameraPosition: AVCaptureDevice.Position = self.attributes.cameraPosition == .back ? .back : .front
+            let cameraPosition: AVCaptureDevice.Position = self.attributes.cameraPosition == .back ? .back : .front
 
-                guard let device = try? self.findDevice(position: cameraPosition) else {
-                    DispatchQueue.main.async {
-                        self.cameraErrors = .cannotSetupInput
-                    }
-                    return
+            guard let device = try? self.findDevice(position: cameraPosition) else {
+                DispatchQueue.main.async {
+                    self.cameraErrors = .cannotSetupInput
                 }
+                return
+            }
                 
-                try self.setupWithDevice(device)
-                
+            do {
+                try self.setDeviceInput(device)
+                self.setZoom(1)
             } catch {
                 print("Error setting up camera: \(error.localizedDescription)")
                 DispatchQueue.main.async {
@@ -119,17 +159,42 @@ extension CameraManager {
         }
     }
     
-    private func setupWithDevice(_ device: AVCaptureDevice) throws {
-        let input = try AVCaptureDeviceInput(device: device)
+    private func setDeviceInput(_ device: AVCaptureDevice) throws {
+        let newInput = try AVCaptureDeviceInput(device: device)
         
-        if self.session.canAddInput(input) && self.session.canAddOutput(self.output) {
-            if let currentInput = self.currentInput {
-                self.session.removeInput(currentInput)
+        let oldInput = self.currentInput
+        // Remove existing input
+        if let currentInput = oldInput {
+            self.session.removeInput(currentInput)
+        }
+        
+        if self.session.canAddInput(newInput) {
+            // Add new input
+            self.session.addInput(newInput)
+            self.currentInput = newInput
+            
+            // Add output if it is not already in the session
+            if !self.session.outputs.contains(self.output) {
+                if self.session.canAddOutput(self.output) {
+                    self.session.addOutput(self.output)
+                } else {
+                    DispatchQueue.main.async {
+                        self.cameraErrors = .cannotSetupOutput
+                    }
+                }
             }
             
-            self.session.addInput(input)
-            self.session.addOutput(self.output)
-            self.currentInput = input
+            // Apply resolution preset after the new input is added
+            if self.session.canSetSessionPreset(self.attributes.resolution) {
+                self.session.sessionPreset = self.attributes.resolution
+            } else {
+                self.session.sessionPreset = .high
+                print("Desired resolution not supported, using .high instead.")
+            }
+            
+            // Update state and observers
+            self.updateUltraWideAvailability(for: device.position)
+            self.observeDevice(device)
             
             do {
                 try self.configureFrameRate(device: device, frameRate: self.attributes.frameRate)
@@ -138,12 +203,17 @@ extension CameraManager {
             }
             
         } else {
-            DispatchQueue.main.async {
-                self.cameraErrors = .cannotSetupOutput
+            // Failure: Roll back to the old input to prevent a black screen
+            if let oldInput = oldInput, self.session.canAddInput(oldInput) {
+                self.session.addInput(oldInput)
             }
+            
+            DispatchQueue.main.async {
+                self.cameraErrors = .cannotSetupInput
+            }
+            throw NSError(domain: "CameraManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "Cannot add input to session."])
         }
-    }
-}
+    }}
 
 // MARK: - Camera Controls
 
@@ -168,47 +238,32 @@ extension CameraManager {
                 return
             }
             
-            if let currentInput = self.currentInput {
-                self.session.removeInput(currentInput)
-            }
-            
             do {
-                let newInput = try AVCaptureDeviceInput(device: newDevice)
-                if self.session.canAddInput(newInput) {
-                    self.session.addInput(newInput)
-                    self.currentInput = newInput
-                }
-                
-                // Reapply the resolution preset when switching camera
-                if self.session.canSetSessionPreset(self.attributes.resolution) {
-                    self.session.sessionPreset = self.attributes.resolution
-                } else {
-                    self.session.sessionPreset = .high
-                }
-                
-                try self.configureFrameRate(device: newDevice, frameRate: self.attributes.frameRate)
-                
+                try self.setDeviceInput(newDevice)
+                self.setZoom(1)
             } catch {
                 print("Error setting up new camera input: \(error.localizedDescription)")
             }
         }
     }
     
-    func switchLensType() {
+    internal func switchLensType() {
+        let newLensType = self.attributes.lensType == .wide ? CameraLensType.ultraWide : .wide
+        switchLensType(to: newLensType)
+    }
+    
+    internal func switchLensType(to newLensType: CameraLensType) {
         sessionQueue.async { [weak self] in
             guard let self = self else { return }
             
-            let newLensType = self.attributes.lensType == .wide ? CameraLensType.ultraWide : .wide
-            let targetZoom: CGFloat = newLensType == .ultraWide ? 0.5 : 1.0
+            // 1.0 is ultra-wide and 2.0 is wide on a hybrid device
+            let targetZoom: CGFloat = newLensType == .ultraWide ? 1.0 : 2.0
             
             // Try automatic switching via zoom if the current device is a hybrid
             if let device = self.currentInput?.device,
-               device.minAvailableVideoZoomFactor <= targetZoom && device.activeFormat.videoMaxZoomFactor >= targetZoom {
+               device.activeFormat.videoMaxZoomFactor >= targetZoom {
                 
                 self.setZoom(targetZoom)
-                DispatchQueue.main.async {
-                    self.attributes.lensType = newLensType
-                }
                 print("Switched to \(newLensType.displayName) lens using hybrid zoom")
                 return
             }
@@ -297,6 +352,8 @@ extension CameraManager {
             if self?.session.isRunning == true {
                 self?.session.stopRunning()
             }
+            self?.zoomObservation?.invalidate()
+            self?.lensObservation?.invalidate()
         }
     }
     
@@ -304,6 +361,25 @@ extension CameraManager {
         sessionQueue.async { [weak self] in
             self?.session.startRunning()
         }
+    }
+}
+
+// MARK: - Zoom Conversion Helpers
+
+extension CameraManager {
+    
+    private func getAVZoomFactor(from uiZoom: CGFloat, for device: AVCaptureDevice) -> CGFloat {
+        if device.deviceType == .builtInDualWideCamera || device.deviceType == .builtInTripleCamera {
+            return uiZoom * 2.0
+        }
+        return uiZoom
+    }
+    
+    private func getUIZoomFactor(from avZoom: CGFloat, for device: AVCaptureDevice) -> CGFloat {
+        if device.deviceType == .builtInDualWideCamera || device.deviceType == .builtInTripleCamera {
+            return avZoom / 2.0
+        }
+        return avZoom
     }
 }
 
@@ -370,20 +446,17 @@ extension CameraManager {
         }
     }
     
-    public func setZoom(_ factor: CGFloat) {
+    public func setZoom(_ uiFactor: CGFloat) {
         sessionQueue.async { [weak self] in
             guard let self = self, let device = self.currentInput?.device else { return }
+            
+            let avFactor = self.getAVZoomFactor(from: uiFactor, for: device)
             
             do {
                 try device.lockForConfiguration()
                 // Use minAvailableVideoZoomFactor so that 0.5x is allowed on hybrid devices
-                let clampedFactor = min(max(factor, device.minAvailableVideoZoomFactor), device.activeFormat.videoMaxZoomFactor)
+                let clampedFactor = min(max(avFactor, device.minAvailableVideoZoomFactor), device.activeFormat.videoMaxZoomFactor)
                 device.videoZoomFactor = clampedFactor
-                
-                DispatchQueue.main.async {
-                    self.attributes.zoomFactor = clampedFactor
-                }
-                
                 device.unlockForConfiguration()
             } catch {
                 print("Error setting zoom: \(error.localizedDescription)")
@@ -449,7 +522,7 @@ extension CameraManager {
 
 extension CameraManager {
     
-    public func isUltraWideAvailable() -> Bool {
+    internal func checkUltraWideAvailable() -> Bool {
         let position: AVCaptureDevice.Position = attributes.cameraPosition == .back ? .back : .front
         return AVCaptureDevice.default(.builtInUltraWideCamera, for: .video, position: position) != nil
     }
@@ -492,5 +565,13 @@ extension CameraManager {
     
     private var isFrontCamera: Bool {
         attributes.cameraPosition == .front
+    }
+    
+    public var isUltraWideAvailable: Bool {
+        attributes.isUltraWideAvailable
+    }
+    
+    public var zoomFactor: CGFloat {
+        attributes.zoomFactor
     }
 }

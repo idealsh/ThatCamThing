@@ -35,6 +35,7 @@ public enum CameraHDRMode: CaseIterable {
 public enum CameraLensType: CaseIterable, Sendable {
     case wide
     case ultraWide
+    case telephoto
     
     public var deviceType: AVCaptureDevice.DeviceType {
         switch self {
@@ -42,6 +43,8 @@ public enum CameraLensType: CaseIterable, Sendable {
             return .builtInWideAngleCamera
         case .ultraWide:
             return .builtInUltraWideCamera
+        case .telephoto:
+            return .builtInTelephotoCamera
         }
     }
     
@@ -51,6 +54,8 @@ public enum CameraLensType: CaseIterable, Sendable {
             return "Wide"
         case .ultraWide:
             return "Ultra Wide"
+        case .telephoto:
+            return "Telephoto"
         }
     }
 }
@@ -83,6 +88,7 @@ public struct CameraManagerAttributes {
     public var mirrorOutput = false
     public var lensType = CameraLensType.wide
     public var isPaused = false
+    public var isUltraWideAvailable = false
     
     public init(
         outputType: CameraOutputType = .photo,
@@ -94,6 +100,7 @@ public struct CameraManagerAttributes {
         mirrorOutput: Bool = false,
         lensType: CameraLensType = .wide,
         isPaused: Bool = false,
+        isUltraWideAvailable: Bool = false,
     ) {
         self.outputType = outputType
         self.cameraPosition = cameraPosition
@@ -104,5 +111,6 @@ public struct CameraManagerAttributes {
         self.mirrorOutput = mirrorOutput
         self.lensType = lensType
         self.isPaused = isPaused
+        self.isUltraWideAvailable = false
     }
 }

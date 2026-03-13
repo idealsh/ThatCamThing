@@ -300,8 +300,8 @@ public struct CustomCameraOverlay:  CameraOverlay {
             .background(Color.black.opacity(0.6))
             .cornerRadius(8)
         }
-        .opacity(camera.isUltraWideAvailable() ? 1.0 : 0.5)
-        .disabled(!camera.isUltraWideAvailable())
+        .opacity(camera.checkUltraWideAvailable() ? 1.0 : 0.5)
+        .disabled(!camera.checkUltraWideAvailable())
     }
     
     /// Status indicator showing camera health and current position (front/back)
