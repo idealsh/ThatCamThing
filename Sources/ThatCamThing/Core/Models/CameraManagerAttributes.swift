@@ -83,7 +83,6 @@ public struct CameraManagerAttributes {
     public var mirrorOutput = false
     public var lensType = CameraLensType.wide
     public var isPaused = false
-    public var isUltraWideLensAvailable = false
     
     public init(
         outputType: CameraOutputType = .photo,
@@ -95,7 +94,6 @@ public struct CameraManagerAttributes {
         mirrorOutput: Bool = false,
         lensType: CameraLensType = .wide,
         isPaused: Bool = false,
-        isUltraWideLensAvailable: Bool = false
     ) {
         self.outputType = outputType
         self.cameraPosition = cameraPosition
@@ -106,6 +104,5 @@ public struct CameraManagerAttributes {
         self.mirrorOutput = mirrorOutput
         self.lensType = lensType
         self.isPaused = isPaused
-        self.isUltraWideLensAvailable = isUltraWideLensAvailable
     }
 }
