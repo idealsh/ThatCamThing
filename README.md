@@ -1,5 +1,7 @@
 # ThatCamThing
 
+This is a custom modification of the original [ThatCamThing](https://github.com/angeldzzz23/ThatCamThing).
+
 Welcome to **ThatCamThing**! A lightweight, powerful, and easy-to-use camera library for SwiftUI. This package provides a simple way to integrate a custom camera interface into your iOS app, with built-in controls and extensive customization options.
 
 ## 📸 Features
