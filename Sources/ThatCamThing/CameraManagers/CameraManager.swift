@@ -369,6 +369,13 @@ extension CameraManager {
 extension CameraManager {
     
     private func getAVZoomFactor(from uiZoom: CGFloat, for device: AVCaptureDevice) -> CGFloat {
+        if #available(iOS 18.0, *) {
+            let multiplier = device.displayVideoZoomFactorMultiplier
+            if multiplier > 0 {
+                return uiZoom / multiplier
+            }
+        }
+        
         if device.deviceType == .builtInDualWideCamera || device.deviceType == .builtInTripleCamera {
             return uiZoom * 2.0
         }
@@ -376,6 +383,10 @@ extension CameraManager {
     }
     
     private func getUIZoomFactor(from avZoom: CGFloat, for device: AVCaptureDevice) -> CGFloat {
+        if #available(iOS 18.0, *) {
+            return avZoom * device.displayVideoZoomFactorMultiplier
+        }
+        
         if device.deviceType == .builtInDualWideCamera || device.deviceType == .builtInTripleCamera {
             return avZoom / 2.0
         }
@@ -426,10 +437,10 @@ extension CameraManager {
     public func switchFlash() {
         switch attributes.flashMode {
         case .off:
-            attributes.flashMode = .on
-        case .on:
             attributes.flashMode = .auto
         case .auto:
+            attributes.flashMode = .on
+        case .on:
             attributes.flashMode = .off
         }
     }
@@ -450,16 +461,56 @@ extension CameraManager {
         sessionQueue.async { [weak self] in
             guard let self = self, let device = self.currentInput?.device else { return }
             
-            let avFactor = self.getAVZoomFactor(from: uiFactor, for: device)
-            
+            let targetVideoZoom = getAVZoomFactor(from: uiFactor, for: device)
+
+            let configuredMaxFactor = getAVZoomFactor(from: attributes.maxZoomFactor, for: device)
+
+            let hardwareLimit = device.activeFormat.videoMaxZoomFactor
+            let effectiveMaxFactor = min(hardwareLimit, configuredMaxFactor)
+
+            let finalClampedFactor = min(max(targetVideoZoom, device.minAvailableVideoZoomFactor), effectiveMaxFactor)
+
             do {
                 try device.lockForConfiguration()
-                // Use minAvailableVideoZoomFactor so that 0.5x is allowed on hybrid devices
-                let clampedFactor = min(max(avFactor, device.minAvailableVideoZoomFactor), device.activeFormat.videoMaxZoomFactor)
-                device.videoZoomFactor = clampedFactor
+
+                device.videoZoomFactor = finalClampedFactor
                 device.unlockForConfiguration()
             } catch {
                 print("Error setting zoom: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    public func setZoomAnimated(_ uiFactor: CGFloat, duration: TimeInterval = 0.001) {
+        sessionQueue.async { [weak self] in
+            guard let self = self, let device = self.currentInput?.device else { return }
+            
+            let targetVideoZoom = getAVZoomFactor(from: uiFactor, for: device)
+
+            let configuredMaxFactor = getAVZoomFactor(from: attributes.maxZoomFactor, for: device)
+
+            let hardwareLimit = device.activeFormat.videoMaxZoomFactor
+            let effectiveMaxFactor = min(hardwareLimit, configuredMaxFactor)
+
+            let finalClampedFactor = min(max(targetVideoZoom, device.minAvailableVideoZoomFactor), effectiveMaxFactor)
+
+            do {
+                try device.lockForConfiguration()
+
+                if duration <= 0 {
+                    device.videoZoomFactor = finalClampedFactor
+                } else {
+                    let difference = abs(Float(finalClampedFactor - device.videoZoomFactor))
+                    let rate = difference / Float(duration)
+                    
+                    if rate > 0 {
+                        device.ramp(toVideoZoomFactor: finalClampedFactor, withRate: rate)
+                    }
+                }
+                
+                device.unlockForConfiguration()
+            } catch {
+                print("Error setting animated zoom: \(error.localizedDescription)")
             }
         }
     }
@@ -573,5 +624,14 @@ extension CameraManager {
     
     public var zoomFactor: CGFloat {
         attributes.zoomFactor
+    }
+    
+    public var lensType: CameraLensType {
+        attributes.lensType
+    }
+    
+    public var maxZoomFactor: CGFloat {
+        get { attributes.maxZoomFactor }
+        set { attributes.maxZoomFactor = newValue }
     }
 }

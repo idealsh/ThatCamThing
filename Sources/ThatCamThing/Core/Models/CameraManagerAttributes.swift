@@ -89,6 +89,7 @@ public struct CameraManagerAttributes {
     public var lensType = CameraLensType.wide
     public var isPaused = false
     public var isUltraWideAvailable = false
+    public var maxZoomFactor: CGFloat = 10
     
     public init(
         outputType: CameraOutputType = .photo,
@@ -101,6 +102,7 @@ public struct CameraManagerAttributes {
         lensType: CameraLensType = .wide,
         isPaused: Bool = false,
         isUltraWideAvailable: Bool = false,
+        maxZoomFactor: CGFloat = 10,
     ) {
         self.outputType = outputType
         self.cameraPosition = cameraPosition
@@ -112,5 +114,6 @@ public struct CameraManagerAttributes {
         self.lensType = lensType
         self.isPaused = isPaused
         self.isUltraWideAvailable = false
+        self.maxZoomFactor = maxZoomFactor
     }
 }
