@@ -90,6 +90,7 @@ public struct CameraManagerAttributes {
     public var isPaused = false
     public var isUltraWideAvailable = false
     public var maxZoomFactor: CGFloat = 10
+    public var suppressShutterSound = false
     
     public init(
         outputType: CameraOutputType = .photo,
@@ -103,6 +104,7 @@ public struct CameraManagerAttributes {
         isPaused: Bool = false,
         isUltraWideAvailable: Bool = false,
         maxZoomFactor: CGFloat = 10,
+        suppressShutterSound: Bool = false,
     ) {
         self.outputType = outputType
         self.cameraPosition = cameraPosition
@@ -115,5 +117,6 @@ public struct CameraManagerAttributes {
         self.isPaused = isPaused
         self.isUltraWideAvailable = false
         self.maxZoomFactor = maxZoomFactor
+        self.suppressShutterSound = suppressShutterSound
     }
 }

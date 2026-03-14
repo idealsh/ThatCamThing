@@ -422,8 +422,10 @@ extension CameraManager {
             }
         }
         
-        if output.isHighResolutionCaptureEnabled {
-            settings.isHighResolutionPhotoEnabled = true
+        settings.maxPhotoDimensions = output.maxPhotoDimensions
+        
+        if #available(iOS 18.0, *) {
+            settings.isShutterSoundSuppressionEnabled = attributes.suppressShutterSound
         }
         
         output.capturePhoto(with: settings, delegate: self)
@@ -581,7 +583,7 @@ extension CameraManager {
 
 // MARK: - Photo Capture Delegate
 
-extension CameraManager: @preconcurrency AVCapturePhotoCaptureDelegate {
+extension CameraManager: AVCapturePhotoCaptureDelegate {
     
     public func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: (any Error)?) {
         
