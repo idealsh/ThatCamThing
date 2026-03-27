@@ -192,6 +192,16 @@ extension CameraManager {
                 print("Desired resolution not supported, using .high instead.")
             }
             
+            if attributes.mirrorFrontOutput {
+                // Mirror the photo output connection for the front camera
+                if let connection = self.output.connection(with: .video) {
+                    if connection.isVideoMirroringSupported && device.position == .front {
+                        connection.automaticallyAdjustsVideoMirroring = false
+                        connection.isVideoMirrored = true
+                    }
+                }
+            }
+            
             // Update state and observers
             self.updateUltraWideAvailability(for: device.position)
             self.observeDevice(device)

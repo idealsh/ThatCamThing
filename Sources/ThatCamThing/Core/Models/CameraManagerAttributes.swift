@@ -85,12 +85,12 @@ public struct CameraManagerAttributes {
     public var frameRate: Int32 = 30
     public var flashMode = CameraFlashMode.off
     public var resolution = AVCaptureSession.Preset.hd1920x1080
-    public var mirrorOutput = false
     public var lensType = CameraLensType.wide
     public var isPaused = false
     public var isUltraWideAvailable = false
     public var maxZoomFactor: CGFloat = 10
     public var suppressShutterSound = false
+    public var mirrorFrontOutput = false
     
     public init(
         outputType: CameraOutputType = .photo,
@@ -99,12 +99,12 @@ public struct CameraManagerAttributes {
         frameRate: FrameRate = .fps30,
         flashMode: CameraFlashMode = .off,
         resolution: AVCaptureSession.Preset = .hd1920x1080,
-        mirrorOutput: Bool = false,
         lensType: CameraLensType = .wide,
         isPaused: Bool = false,
         isUltraWideAvailable: Bool = false,
         maxZoomFactor: CGFloat = 10,
         suppressShutterSound: Bool = false,
+        mirrorFrontOutput: Bool = false
     ) {
         self.outputType = outputType
         self.cameraPosition = cameraPosition
@@ -112,11 +112,11 @@ public struct CameraManagerAttributes {
         self.frameRate = frameRate.asInt32
         self.flashMode = flashMode
         self.resolution = resolution
-        self.mirrorOutput = mirrorOutput
         self.lensType = lensType
         self.isPaused = isPaused
         self.isUltraWideAvailable = false
         self.maxZoomFactor = maxZoomFactor
         self.suppressShutterSound = suppressShutterSound
+        self.mirrorFrontOutput = mirrorFrontOutput
     }
 }
