@@ -91,6 +91,7 @@ public struct CameraManagerAttributes {
     public var maxZoomFactor: CGFloat = 10
     public var suppressShutterSound = false
     public var mirrorFrontOutput = false
+    public var qualityPrioritization: AVCapturePhotoOutput.QualityPrioritization = .quality
     
     public init(
         outputType: CameraOutputType = .photo,
@@ -104,7 +105,8 @@ public struct CameraManagerAttributes {
         isUltraWideAvailable: Bool = false,
         maxZoomFactor: CGFloat = 10,
         suppressShutterSound: Bool = false,
-        mirrorFrontOutput: Bool = false
+        mirrorFrontOutput: Bool = false,
+        qualityPrioritization: AVCapturePhotoOutput.QualityPrioritization = .quality
     ) {
         self.outputType = outputType
         self.cameraPosition = cameraPosition
@@ -118,5 +120,6 @@ public struct CameraManagerAttributes {
         self.maxZoomFactor = maxZoomFactor
         self.suppressShutterSound = suppressShutterSound
         self.mirrorFrontOutput = mirrorFrontOutput
+        self.qualityPrioritization = qualityPrioritization
     }
 }

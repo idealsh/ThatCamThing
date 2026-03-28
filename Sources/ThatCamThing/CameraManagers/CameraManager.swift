@@ -177,6 +177,7 @@ extension CameraManager {
             if !self.session.outputs.contains(self.output) {
                 if self.session.canAddOutput(self.output) {
                     self.session.addOutput(self.output)
+                    self.output.maxPhotoQualityPrioritization = self.attributes.qualityPrioritization
                 } else {
                     DispatchQueue.main.async {
                         self.cameraErrors = .cannotSetupOutput
@@ -421,14 +422,16 @@ extension CameraManager {
         
         let settings = AVCapturePhotoSettings()
         
-        if currentInput?.device.hasFlash == true {
-            switch attributes.flashMode {
-            case .off:
-                settings.flashMode = .off
-            case .on:
-                settings.flashMode = .on
-            case .auto:
-                settings.flashMode = .auto
+        if let device = currentInput?.device {
+            if device.hasFlash {
+                switch attributes.flashMode {
+                case .off:
+                    settings.flashMode = .off
+                case .on:
+                    settings.flashMode = .on
+                case .auto:
+                    settings.flashMode = .auto
+                }
             }
         }
         
