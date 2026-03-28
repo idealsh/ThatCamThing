@@ -133,28 +133,30 @@ extension CameraManager {
     
     func setUp() {
         sessionQueue.async { [weak self] in
-            guard let self = self else { return }
-            
-            self.session.beginConfiguration()
-            defer { self.session.commitConfiguration() }
-            
-            let cameraPosition: AVCaptureDevice.Position = self.attributes.cameraPosition == .back ? .back : .front
+            self?.setUpSessionOnQueue()
+        }
+    }
+    
+    private func setUpSessionOnQueue() {
+        session.beginConfiguration()
+        defer { session.commitConfiguration() }
+        
+        let cameraPosition: AVCaptureDevice.Position = attributes.cameraPosition == .back ? .back : .front
 
-            guard let device = try? self.findDevice(position: cameraPosition) else {
-                DispatchQueue.main.async {
-                    self.cameraErrors = .cannotSetupInput
-                }
-                return
+        guard let device = try? findDevice(position: cameraPosition) else {
+            DispatchQueue.main.async {
+                self.cameraErrors = .cannotSetupInput
             }
-                
-            do {
-                try self.setDeviceInput(device)
-                self.setZoom(1)
-            } catch {
-                print("Error setting up camera: \(error.localizedDescription)")
-                DispatchQueue.main.async {
-                    self.cameraErrors = .cannotSetupInput
-                }
+            return
+        }
+            
+        do {
+            try setDeviceInput(device)
+            setZoom(1)
+        } catch {
+            print("Error setting up camera: \(error.localizedDescription)")
+            DispatchQueue.main.async {
+                self.cameraErrors = .cannotSetupInput
             }
         }
     }
@@ -349,6 +351,11 @@ extension CameraManager {
         sessionQueue.async { [weak self] in
             guard let self = self else { return }
             if !self.session.isRunning {
+                // Restore camera input if it was lost (e.g. after interruption),
+                // preserving the saved front/back position from attributes
+                if self.currentInput == nil {
+                    self.setUpSessionOnQueue()
+                }
                 self.session.startRunning()
                 DispatchQueue.main.async {
                     self.attributes.isPaused = false
