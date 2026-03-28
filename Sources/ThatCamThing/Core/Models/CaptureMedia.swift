@@ -12,6 +12,7 @@ import AVFoundation
 import AVKit
 
 public struct CameraMedia {
+    public let id = UUID()
     public let image: UIImage
     public let metadata: [String: Any]?
     public let timestamp: Date
