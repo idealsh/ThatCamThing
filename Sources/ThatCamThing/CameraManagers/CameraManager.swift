@@ -34,9 +34,10 @@ public class CameraManager: NSObject, ObservableObject, @unchecked Sendable {
     
     private var zoomObservation: NSKeyValueObservation?
     private var lensObservation: NSKeyValueObservation?
-    
+    private var notificationObservers: [NSObjectProtocol] = []
+
     deinit {
-        NotificationCenter.default.removeObserver(self)
+        notificationObservers.forEach { NotificationCenter.default.removeObserver($0) }
         zoomObservation?.invalidate()
         lensObservation?.invalidate()
     }
@@ -54,37 +55,43 @@ public class CameraManager: NSObject, ObservableObject, @unchecked Sendable {
 extension CameraManager {
 
     private func setupSessionNotifications() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(sessionWasInterrupted),
-            name: AVCaptureSession.wasInterruptedNotification,
-            object: session
-        )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(sessionInterruptionEnded),
-            name: AVCaptureSession.interruptionEndedNotification,
-            object: session
-        )
-    }
-
-    @objc private func sessionWasInterrupted(_ notification: Notification) {
-        if let reasonValue = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int,
-           let reason = AVCaptureSession.InterruptionReason(rawValue: reasonValue) {
-            print("Camera session interrupted: \(reason.rawValue)")
-        }
-        DispatchQueue.main.async {
+        let interrupted = NotificationCenter.default.addObserver(
+            forName: AVCaptureSession.wasInterruptedNotification,
+            object: session,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self else { return }
+            let isMultitaskingInterruption: Bool
+            if let reasonValue = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int,
+               let reason = AVCaptureSession.InterruptionReason(rawValue: reasonValue) {
+                isMultitaskingInterruption = reason == .videoDeviceNotAvailableWithMultipleForegroundApps
+            } else {
+                isMultitaskingInterruption = false
+            }
             self.attributes.isPaused = true
-        }
-    }
-
-    @objc private func sessionInterruptionEnded(_ notification: Notification) {
-        sessionQueue.async { [weak self] in
-            self?.session.startRunning()
-            DispatchQueue.main.async {
-                self?.attributes.isPaused = false
+            if isMultitaskingInterruption && !self.session.isMultitaskingCameraAccessSupported {
+                self.cameraErrors = .multitaskingNotSupported
             }
         }
+
+        let ended = NotificationCenter.default.addObserver(
+            forName: AVCaptureSession.interruptionEndedNotification,
+            object: session,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.sessionQueue.async { [weak self] in
+                self?.session.startRunning()
+                DispatchQueue.main.async {
+                    self?.attributes.isPaused = false
+                    if self?.cameraErrors == .multitaskingNotSupported {
+                        self?.cameraErrors = nil
+                    }
+                }
+            }
+        }
+
+        notificationObservers = [interrupted, ended]
     }
 }
 
@@ -182,6 +189,10 @@ extension CameraManager {
     }
     
     private func setUpSessionOnQueue() {
+        if session.isMultitaskingCameraAccessSupported {
+            session.isMultitaskingCameraAccessEnabled = true
+        }
+
         session.beginConfiguration()
         defer { session.commitConfiguration() }
         

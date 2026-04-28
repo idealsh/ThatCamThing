@@ -12,7 +12,10 @@ import AVKit
 
 // MARK: - Core Models and Enums
 
-public enum CameraError: Error {
+public enum CameraError: Error, Equatable {
     case cameraPermissionsNotGranted
     case cannotSetupInput, cannotSetupOutput
+    /// The device doesn't support simultaneous camera use across multiple windows.
+    /// The camera will resume automatically when the competing window is closed.
+    case multitaskingNotSupported
 }
