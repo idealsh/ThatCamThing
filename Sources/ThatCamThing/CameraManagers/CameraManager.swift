@@ -19,7 +19,10 @@ public class CameraManager: NSObject, ObservableObject, @unchecked Sendable {
     public var session = AVCaptureSession()
     public var output = AVCapturePhotoOutput()
     public var preview: AVCaptureVideoPreviewLayer
-    
+    var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
+    private var previewRotationObservation: NSKeyValueObservation?
+    private var outputRotationObservation: NSKeyValueObservation?
+
     @Published public var cameraErrors: CameraError? = nil
     @Published public var containsErrors = false
     @Published public var attributes = CameraManagerAttributes()
@@ -39,8 +42,10 @@ public class CameraManager: NSObject, ObservableObject, @unchecked Sendable {
     
     // MARK: - Initialization
     public override init() {
-        self.preview = AVCaptureVideoPreviewLayer()
+        preview = AVCaptureVideoPreviewLayer(session: session)
         super.init()
+        setupSessionNotifications()
+    }
     }
 }
 
@@ -215,6 +220,32 @@ extension CameraManager {
                 print("Error configuring frame rate: \(error.localizedDescription)")
             }
             
+            switch attributes.autoRotateHorizon {
+            case .autoRotate, .previewBased:
+                let rotationCoordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: preview)
+                self.rotationCoordinator = rotationCoordinator
+                
+                let isPreviewBased = attributes.autoRotateHorizon == .previewBased
+                
+                self.previewRotationObservation = rotationCoordinator.observe(\.videoRotationAngleForHorizonLevelPreview, options: [.initial]) { coordinator, _ in
+                    let angle = coordinator.videoRotationAngleForHorizonLevelPreview
+                    self.preview.connection?.videoRotationAngle = angle
+                    if isPreviewBased {
+                        self.output.connection(with: .video)?.videoRotationAngle = angle
+                    }
+                }
+                
+                if !isPreviewBased {
+                    self.outputRotationObservation = rotationCoordinator.observe(\.videoRotationAngleForHorizonLevelCapture, options: [.initial]) { coordinator, _ in
+                        self.output.connection(with: .video)?.videoRotationAngle = coordinator.videoRotationAngleForHorizonLevelCapture
+                    }
+                } else {
+                    self.outputRotationObservation = nil
+                }
+            case .none:
+                self.rotationCoordinator = nil
+                self.previewRotationObservation = nil
+            }
         } else {
             // Failure: Roll back to the old input to prevent a black screen
             if let oldInput = oldInput, self.session.canAddInput(oldInput) {
@@ -226,7 +257,8 @@ extension CameraManager {
             }
             throw NSError(domain: "CameraManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "Cannot add input to session."])
         }
-    }}
+    }
+}
 
 // MARK: - Camera Controls
 

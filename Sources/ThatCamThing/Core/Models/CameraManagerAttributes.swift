@@ -78,6 +78,10 @@ public enum FrameRate {
     }
 }
 
+public enum HorizonRotationType {
+    case autoRotate, previewBased, none
+}
+
 public struct CameraManagerAttributes {
     public var outputType = CameraOutputType.photo
     public var cameraPosition = CameraPosition.back
@@ -92,6 +96,7 @@ public struct CameraManagerAttributes {
     public var suppressShutterSound = false
     public var mirrorFrontOutput = false
     public var qualityPrioritization: AVCapturePhotoOutput.QualityPrioritization = .quality
+    public var autoRotateHorizon: HorizonRotationType
     
     public init(
         outputType: CameraOutputType = .photo,
@@ -106,7 +111,8 @@ public struct CameraManagerAttributes {
         maxZoomFactor: CGFloat = 10,
         suppressShutterSound: Bool = false,
         mirrorFrontOutput: Bool = false,
-        qualityPrioritization: AVCapturePhotoOutput.QualityPrioritization = .quality
+        qualityPrioritization: AVCapturePhotoOutput.QualityPrioritization = .quality,
+        autoRotateHorizon: HorizonRotationType = .previewBased
     ) {
         self.outputType = outputType
         self.cameraPosition = cameraPosition
@@ -121,5 +127,6 @@ public struct CameraManagerAttributes {
         self.suppressShutterSound = suppressShutterSound
         self.mirrorFrontOutput = mirrorFrontOutput
         self.qualityPrioritization = qualityPrioritization
+        self.autoRotateHorizon = autoRotateHorizon
     }
 }
