@@ -36,6 +36,7 @@ public class CameraManager: NSObject, ObservableObject, @unchecked Sendable {
     private var lensObservation: NSKeyValueObservation?
     
     deinit {
+        NotificationCenter.default.removeObserver(self)
         zoomObservation?.invalidate()
         lensObservation?.invalidate()
     }
@@ -46,6 +47,44 @@ public class CameraManager: NSObject, ObservableObject, @unchecked Sendable {
         super.init()
         setupSessionNotifications()
     }
+}
+
+// MARK: - Session Interruption Handling
+
+extension CameraManager {
+
+    private func setupSessionNotifications() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(sessionWasInterrupted),
+            name: AVCaptureSession.wasInterruptedNotification,
+            object: session
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(sessionInterruptionEnded),
+            name: AVCaptureSession.interruptionEndedNotification,
+            object: session
+        )
+    }
+
+    @objc private func sessionWasInterrupted(_ notification: Notification) {
+        if let reasonValue = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int,
+           let reason = AVCaptureSession.InterruptionReason(rawValue: reasonValue) {
+            print("Camera session interrupted: \(reason.rawValue)")
+        }
+        DispatchQueue.main.async {
+            self.attributes.isPaused = true
+        }
+    }
+
+    @objc private func sessionInterruptionEnded(_ notification: Notification) {
+        sessionQueue.async { [weak self] in
+            self?.session.startRunning()
+            DispatchQueue.main.async {
+                self?.attributes.isPaused = false
+            }
+        }
     }
 }
 
